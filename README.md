@@ -1,6 +1,45 @@
 Searchable, a search trait for Laravel
 ==========================================
 
+# About this clone
+
+This clone of 'searchable' adds **columns filters**. For each column, you can specify one or more conditions that
+determine which words from the query apply to that column. This makes your queries much more efficient and your relevance more accurate.
+For example, when searching for 'red Chrysler 1967', the 'year' column would be searched for '1967', but not for 'red' or 'Chrysler'.
+The 'brand_name' column_would be searched for 'Chrysler' (and maybe for 'red'), but not for '1967'.
+The 'color' column_would be searched for 'red' but not for 'Chrysler' or '1967'.
+
+You can do this by adding a `conditions` element to the `$searchable` array and specify the conditions for each column
+using one or more regular expressions (note: a prefix '$/' and suffix '$/' will be added automatically). 
+When you use an arrays with multiple conditions, they will be 'OR'ed:
+
+```php
+    protected $searchable = [
+        'columns' => [
+            'brand' => 15,
+            'year' => 5,
+            'color' => 5
+        ],
+        'conditions' => [
+
+            // Regex example: For 'year', only search words from the query that are 4 digits:
+            'year' => '\d{4}',
+
+            // For 'name', only search words that have at least 3 characters (no digits in this case, else use '\w{3,}'):
+            'name' => '[a-zA-Z]{3,}',
+
+            // Array example: Search the 'color' column only for words like '#FFEE45' OR 'red', 'blue' or 'yellow'
+            'color' => [
+                '#[\dABCDEF]{6}'
+                '(red|blue|yellow)'
+            ]
+        ],
+    ];
+}
+```
+
+# Searchable
+
 Searchable is a trait for Laravel 4.2+ and Laravel 5.0 that adds a simple search function to Eloquent Models.
 
 Searchable allows you to perform searches in a table giving priorities to each field for the table and it's relations.

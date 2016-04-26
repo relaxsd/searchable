@@ -53,10 +53,19 @@ trait SearchableTrait
         $this->search_bindings = [];
         $relevance_count = 0;
 
+        $columnConditions = $this->getConditions();
+
         foreach ($this->getColumns() as $column => $relevance)
         {
+            // Filter the words that are applicable to this column.
+            // Skip this column if we have no words left.
+            if (! ($columnWords = $this->filterWords($column, $columnConditions, $words))) {
+                continue; // with next column
+            };
+
             $relevance_count += $relevance;
-            $queries = $this->getSearchQueriesForColumn($query, $column, $relevance, $words);
+
+            $queries = $this->getSearchQueriesForColumn($query, $column, $relevance, $columnWords);
 
             if ( $entireText === true )
             {
@@ -69,24 +78,32 @@ trait SearchableTrait
             }
         }
 
-        $this->addSelectsToQuery($query, $selects);
+        if ($selects) {
 
-        // Default the threshold if no value was passed.
-        if (is_null($threshold)) {
-            $threshold = $relevance_count / 4;
+            $this->addSelectsToQuery($query, $selects);
+
+            // Default the threshold if no value was passed.
+            if (is_null($threshold)) {
+                $threshold = $relevance_count / 4;
+            }
+
+            $this->filterQueryWithRelevance($query, $selects, $threshold);
+
+            $this->makeGroupBy($query);
+
+            $this->addBindingsToQuery($query, $this->search_bindings);
+
+            if (is_callable($restriction)) {
+                $query = $restriction($query);
+            }
+
+            $this->mergeQueries($query, $q);
+
+        } else {
+            // If no words from the query apply to any column, make sure to return nothing (instead of all records)
+            $q->whereRaw("1=0");
+
         }
-
-        $this->filterQueryWithRelevance($query, $selects, $threshold);
-
-        $this->makeGroupBy($query);
-
-        $this->addBindingsToQuery($query, $this->search_bindings);
-
-        if(is_callable($restriction)) {
-            $query = $restriction($query);
-        }
-
-        $this->mergeQueries($query, $q);
 
         return $q;
     }
@@ -113,6 +130,58 @@ trait SearchableTrait
         } else {
             return DB::connection()->getSchemaBuilder()->getColumnListing($this->table);
         }
+    }
+
+    /**
+     * Returns the conditions. They specify when a search word may be taken into account
+     * for the column, eg. "only if the length > 3" (for texts) or "only if it is a number >0 and <120" (for age column).
+     *
+     * You can specify one regexp or closure, or arrays of them ("OR", so if one of them applies, the word will be searched).
+     *
+     * @return array|null
+     */
+    protected function getConditions()
+    {
+        if (array_key_exists('conditions', $this->searchable)) {
+            return $this->searchable['conditions'];
+        }
+        return null;
+    }
+
+    /**
+     * @param string $column
+     * @param array|null  $columnConditions
+     * @param array  $words
+     *
+     * @return array
+     */
+    protected function filterWords($column, $columnConditions, $words)
+    {
+        if (is_null($columnConditions) || ! array_key_exists($column, $columnConditions)) {
+            // No conditions apply to this column, return all words
+            return $words;
+        }
+
+        // Make conditions an array
+        $conditions = is_array($columnConditions[$column]) ? $columnConditions[$column] : [$columnConditions[$column]];
+
+        // Filter the words for which at least one condition applies (using OR, not AND)
+        return array_filter($words, function ($word) use ($conditions) {
+            foreach ($conditions as $condition) {
+
+                if (is_string($condition) && preg_match('/^'.$condition.'$/', $word)) {
+                    return true;
+
+                    // TODO: Untested, and closures are not allowed as value in $searchable.
+                } elseif (($condition instanceof \Closure) && call_user_func($condition, $word)) {
+                    return true;
+
+                }
+            }
+
+            // None of the conditions apply, return FALSE for this word
+            return false;
+        });
     }
 
     /**
@@ -286,7 +355,7 @@ trait SearchableTrait
      */
     protected function getCaseCompare($column, $compare, $relevance) {
         if($this->getDatabaseDriver() == 'pgsql') {
-            $field = "LOWER(" . $column . ") " . $compare . " ?";    
+            $field = "LOWER(" . $column . ") " . $compare . " ?";
             return '(case when ' . $field . ' then ' . $relevance . ' else 0 end)';
         }
 
@@ -319,7 +388,7 @@ trait SearchableTrait
      */
     protected function mergeQueries(Builder $clone, Builder $original) {
         $tableName = DB::connection($this->connection)->getTablePrefix() . $this->getTable();
-		if ($this->getDatabaseDriver() == 'pgsql') {
+        if ($this->getDatabaseDriver() == 'pgsql') {
             $original->from(DB::connection($this->connection)->raw("({$clone->toSql()}) as {$tableName}"));
         } else {
             $original->from(DB::connection($this->connection)->raw("({$clone->toSql()}) as `{$tableName}`"));
