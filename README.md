@@ -6,12 +6,11 @@ Searchable, a search trait for Laravel
 This clone of 'searchable' adds **columns filters**. For each column, you can specify one or more conditions that
 determine which words from the query apply to that column. This makes your queries much more efficient and your relevance more accurate.
 For example, when searching for 'red Chrysler 1967', the 'year' column would be searched for '1967', but not for 'red' or 'Chrysler'.
-The 'brand_name' column_would be searched for 'Chrysler' (and maybe for 'red'), but not for '1967'.
+The 'brand_name' column would be searched for 'Chrysler' (and maybe for 'red'), but not for '1967'.
 The 'color' column_would be searched for 'red' but not for 'Chrysler' or '1967'.
 
 You can do this by adding a `conditions` element to the `$searchable` array and specify the conditions for each column
-using one or more regular expressions (note: a prefix '$/' and suffix '$/' will be added automatically). 
-When you use an arrays with multiple conditions, they will be 'OR'ed:
+using one or more regular expressions. When you use an array with multiple conditions, they will be 'OR'ed:
 
 ```php
     protected $searchable = [
@@ -22,13 +21,17 @@ When you use an arrays with multiple conditions, they will be 'OR'ed:
         ],
         'conditions' => [
 
-            // Regex example: For 'year', only search words from the query that are 4 digits:
+            // Regex example: For 'year', only search words 
+            // from the query that are 4 digits:
             'year' => '\d{4}',
 
-            // For 'name', only search words that have at least 3 characters (no digits in this case, else use '\w{3,}'):
+            // For 'name', only search words that have at least 3 
+            // characters (no digits or international characters in this 
+            // case, else use '\w{3,}' or '[a-zA-Z0-9\x7f-\xff]{3,}'):
             'name' => '[a-zA-Z]{3,}',
 
-            // Array example: Search the 'color' column only for words like '#FFEE45' OR 'red', 'blue' or 'yellow'
+            // Array example: Search the 'color' column only for words 
+            // like '#FFEE45' OR 'red', 'blue' or 'yellow'
             'color' => [
                 '#[\dABCDEF]{6}'
                 '(red|blue|yellow)'
@@ -37,6 +40,9 @@ When you use an arrays with multiple conditions, they will be 'OR'ed:
     ];
 }
 ```
+
+Note: `/` delimiters and start/end meta-characters (prefix `^` and `$`) are automatically added to your regular expressions, so you can just use `\d{4}` instead of `/^\d{4}$/`. 
+This makes your code more readable, but at the moment, it also makes it impossible to use options like `/i` for case-insensitive matches.
 
 # Searchable
 
