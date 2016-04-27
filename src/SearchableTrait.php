@@ -100,8 +100,12 @@ trait SearchableTrait
             $this->mergeQueries($query, $q);
 
         } else {
+
             // If no words from the query apply to any column, make sure to return nothing (instead of all records)
             $q->whereRaw("1=0");
+
+            // The outside world might still expect a relevance field (e.g. for orderBy('relevance'))
+            $q->addSelect(new Expression('0 as relevance'));
 
         }
 
