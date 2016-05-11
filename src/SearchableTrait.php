@@ -315,8 +315,9 @@ trait SearchableTrait
     {
         $queries = [];
 
-        $queries[] = $this->getSearchQuery($query, $column, $relevance, $words, 15);
-        $queries[] = $this->getSearchQuery($query, $column, $relevance, $words, 5, '', '%');
+        $queries[] = $this->getSearchQuery($query, $column, $relevance, $words, 6);
+        $queries[] = $this->getSearchQuery($query, $column, $relevance, $words, 4, '', '%');
+        $queries[] = $this->getSearchQuery($query, $column, $relevance, $words, 2, '%', '');
         $queries[] = $this->getSearchQuery($query, $column, $relevance, $words, 1, '%', '%');
 
         return $queries;
