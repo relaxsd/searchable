@@ -28,14 +28,15 @@ trait SearchableTrait
      * @param string $search
      * @param float|null $threshold
      * @param  boolean $entireText
+     * @param  boolean $entireTextOnly
      * @return \Illuminate\Database\Eloquent\Builder
      */
-    public function scopeSearch(Builder $q, $search, $threshold = null, $entireText = false)
+    public function scopeSearch(Builder $q, $search, $threshold = null, $entireText = false, $entireTextOnly = false)
     {
-        return $this->scopeSearchRestricted($q, $search, null, $threshold, $entireText);
+        return $this->scopeSearchRestricted($q, $search, null, $threshold, $entireText, $entireTextOnly);
     }
 
-    public function scopeSearchRestricted(Builder $q, $search, $restriction, $threshold = null, $entireText = false)
+    public function scopeSearchRestricted(Builder $q, $search, $restriction, $threshold = null, $entireText = false, $entireTextOnly = false)
     {
         $query = clone $q;
         $query->select($this->getTable() . '.*');
@@ -59,17 +60,22 @@ trait SearchableTrait
         {
             // Filter the words that are applicable to this column.
             // Skip this column if we have no words left.
-            if (! ($columnWords = $this->filterWords($column, $columnConditions, $words))) {
+            if (! ($words = $this->filterWords($column, $columnConditions, $words))) {
                 continue; // with next column
             };
 
             $relevance_count += $relevance;
 
-            $queries = $this->getSearchQueriesForColumn($query, $column, $relevance, $columnWords);
+            if (!$entireTextOnly) {
+                $queries = $this->getSearchQueriesForColumn($query, $column, $relevance, $words);
+            } else {
+                $queries = [];
+            }
 
-            if ( $entireText === true )
+            if ( ($entireText === true && count($words) > 1) || $entireTextOnly === true )
             {
-                $queries[] = $this->getSearchQuery($query, $column, $relevance, [$search], 30, '', '%');
+                $queries[] = $this->getSearchQuery($query, $column, $relevance, [$search], 50, '', '');
+                $queries[] = $this->getSearchQuery($query, $column, $relevance, [$search], 30, '%', '%');
             }
 
             foreach ($queries as $select)
@@ -130,7 +136,13 @@ trait SearchableTrait
     protected function getColumns()
     {
         if (array_key_exists('columns', $this->searchable)) {
-            return $this->searchable['columns'];
+            $driver = $this->getDatabaseDriver();
+            $prefix = config("database.connections.$driver.prefix");
+            $columns = [];
+            foreach($this->searchable['columns'] as $column => $priority){
+                $columns[$prefix . $column] = $priority;
+            }
+            return $columns;
         } else {
             return DB::connection()->getSchemaBuilder()->getColumnListing($this->table);
         }
