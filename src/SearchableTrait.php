@@ -276,7 +276,8 @@ trait SearchableTrait
             foreach ($this->getColumns() as $column => $relevance) {
                 array_map(function ($join) use ($column, $query) {
                     if (Str::contains($column, $join)) {
-                        $query->groupBy($column);
+                        // Use DB:raw to prevent duplicate database prefix
+                        $query->groupBy(DB::raw($column));
                     }
                 }, $joins);
             }
