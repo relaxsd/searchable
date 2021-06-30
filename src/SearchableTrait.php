@@ -40,6 +40,9 @@ trait SearchableTrait
     {
         $query = clone $q;
         $query->select($this->getTable() . '.*');
+        // Bugfix: after replacing the SQL, also replace existing bindings to prevent them
+        //         from getting duplicated in mergeQueries()
+        $query->setBindings([], 'select');
         $this->makeJoins($query);
 
         if ( ! $search)
